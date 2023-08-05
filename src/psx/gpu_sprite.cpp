@@ -1,3 +1,4 @@
+#define SOTN_OPTIMIZE_GPU 1
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -116,8 +117,11 @@ static void DrawSprite(int32 x_arg, int32 y_arg, int32 w, int32 h, uint8 u_arg, 
 
     if((BlendMode >= 0) || MaskEval_TA)
      suck_time += (((x_bound + 1) & ~1) - (x_start & ~1)) >> 1;
-
+    #if SOTN_OPTIMIZE_GPU == 1
+    DrawTimeAvail--;
+    #else
     DrawTimeAvail -= suck_time;
+    #endif
    }
 
    for(int32 x = x_start; MDFN_LIKELY(x < x_bound); x++)
@@ -155,7 +159,11 @@ static void Command_DrawSprite(const uint32 *cb)
  uint8 u = 0, v = 0;
  uint32 color = 0;
 
- DrawTimeAvail -= 16;	// FIXME, correct time.
+#if SOTN_OPTIMIZE_GPU == 1
+    DrawTimeAvail--;
+    #else
+    DrawTimeAvail -= 16;	// FIXME, correct time.
+    #endif
 
  color = *cb & 0x00FFFFFF;
  cb++;

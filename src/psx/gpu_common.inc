@@ -1,3 +1,5 @@
+#define SOTN_OPTIMIZE_GPU 1
+
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -292,7 +294,11 @@ static INLINE uint16 GetTexel(uint32 u_arg, uint32 v_arg)
       //
       // We'll be conservative and just go with 4 for now, until we can run some tests with triangles too.
       //
+      #if SOTN_OPTIMIZE_GPU == 1
+      DrawTimeAvail -= 0;
+      #else
       DrawTimeAvail -= 4;
+      #endif
       memcpy(c->Data, (uint16*)GPURAM + (gro &~ 0x3), 4 * sizeof(uint16));
       c->Tag = (gro &~ 0x3);
      }

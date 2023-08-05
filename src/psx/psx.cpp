@@ -1,3 +1,14 @@
+#define SOTN_OPTIMIZE_CPU 1
+#define RAM_8M 1
+
+#if RAM_8M == 1
+#define RAM_OFFSET 0x7FFFFF
+#define RAM_SIZE 8192
+#else
+#define RAM_OFFSET 0x1FFFFF
+#define RAM_SIZE 2048
+#endif
+
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -230,7 +241,7 @@ FrontIO *FIO = NULL;
 MultiAccessSizeMem<512 * 1024, false> *BIOSROM = NULL;
 MultiAccessSizeMem<65536, false> *PIOMem = NULL;
 
-MultiAccessSizeMem<2048 * 1024, false> MainRAM;
+MultiAccessSizeMem<RAM_SIZE * 1024, false> MainRAM;
 
 static uint32 TextMem_Start;
 static std::vector<uint8> TextMem;
@@ -268,10 +279,13 @@ static unsigned DMACycleSteal = 0;	// Doesn't need to be saved in save states, s
 
 void PSX_SetDMACycleSteal(unsigned stealage)
 {
- if(stealage > 200)	// Due to 8-bit limitations in the CPU core.
+ if(stealage > 200) 	// Due to 8-bit limitations in the CPU core.
   stealage = 200;
-
+#if SOTN_OPTIMIZE_CPU == 1
+ DMACycleSteal = 1;
+ #else
  DMACycleSteal = stealage;
+ #endif
 }
 
 
@@ -463,8 +477,11 @@ template<typename T, bool IsWrite, bool Access24> static INLINE void MemRW(pscpu
   printf("Read%d: %08x(orig=%08x)\n", (int)(sizeof(T) * 8), A & mask[A >> 29], A);
  #endif
 
- if(!IsWrite)
+#if SOTN_OPTIMIZE_CPU == 1
+ #else
+if(!IsWrite)
   timestamp += DMACycleSteal;
+ #endif
 
  if(A < 0x00800000)
  {
@@ -474,22 +491,26 @@ template<typename T, bool IsWrite, bool Access24> static INLINE void MemRW(pscpu
   }
   else
   {
+   #if SOTN_OPTIMIZE_CPU == 1
+   timestamp += 1;
+   #else
    timestamp += 3;
+   #endif
   }
 
   if(Access24)
   {
    if(IsWrite)
-    MainRAM.WriteU24(A & 0x1FFFFF, V);
+    MainRAM.WriteU24(A & RAM_OFFSET, V);
    else
-    V = MainRAM.ReadU24(A & 0x1FFFFF);
+    V = MainRAM.ReadU24(A & RAM_OFFSET);
   }
   else
   {
    if(IsWrite)
-    MainRAM.Write<T>(A & 0x1FFFFF, V);
+    MainRAM.Write<T>(A & RAM_OFFSET, V);
    else
-    V = MainRAM.Read<T>(A & 0x1FFFFF);
+    V = MainRAM.Read<T>(A & RAM_OFFSET);
   }
 
   return;
@@ -840,9 +861,9 @@ template<typename T, bool Access24> static INLINE uint32 MemPeek(pscpu_timestamp
  if(A < 0x00800000)
  {
   if(Access24)
-   return(MainRAM.ReadU24(A & 0x1FFFFF));
+   return(MainRAM.ReadU24(A & RAM_OFFSET));
   else
-   return(MainRAM.Read<T>(A & 0x1FFFFF));
+   return(MainRAM.Read<T>(A & RAM_OFFSET));
  }
 
  if(A >= 0x1FC00000 && A <= 0x1FC7FFFF)
@@ -972,9 +993,9 @@ template<typename T, bool Access24> static INLINE void MemPoke(pscpu_timestamp_t
  if(A < 0x00800000)
  {
   if(Access24)
-   MainRAM.WriteU24(A & 0x1FFFFF, V);
+   MainRAM.WriteU24(A & RAM_OFFSET, V);
   else
-   MainRAM.Write<T>(A & 0x1FFFFF, V);
+   MainRAM.Write<T>(A & RAM_OFFSET, V);
 
   return;
  }
@@ -1026,7 +1047,7 @@ static void PSX_Reset(bool powering_up)
 {
  PSX_PRNG.ResetState();	// Should occur first!
 
- memset(MainRAM.data8, 0, 2048 * 1024);
+ memset(MainRAM.data8, 0, RAM_SIZE * 1024);
 
  for(unsigned i = 0; i < 9; i++)
   SysControl.Regs[i] = 0;
@@ -1688,11 +1709,11 @@ static MDFN_COLD void InitCommon(std::vector<CDInterface*> *CDInterfaces, const 
  else
   PIOMem = NULL;
 
- for(uint32 ma = 0x00000000; ma < 0x00800000; ma += 2048 * 1024)
+ for(uint32 ma = 0x00000000; ma < 0x00800000; ma += RAM_SIZE * 1024)
  {
-  CPU->SetFastMap(MainRAM.data8, 0x00000000 + ma, 2048 * 1024);
-  CPU->SetFastMap(MainRAM.data8, 0x80000000 + ma, 2048 * 1024);
-  CPU->SetFastMap(MainRAM.data8, 0xA0000000 + ma, 2048 * 1024);
+  CPU->SetFastMap(MainRAM.data8, 0x00000000 + ma, RAM_SIZE * 1024);
+  CPU->SetFastMap(MainRAM.data8, 0x80000000 + ma, RAM_SIZE * 1024);
+  CPU->SetFastMap(MainRAM.data8, 0xA0000000 + ma, RAM_SIZE * 1024);
  }
 
  CPU->SetFastMap(BIOSROM->data8, 0x1FC00000, 512 * 1024);
@@ -1708,7 +1729,7 @@ static MDFN_COLD void InitCommon(std::vector<CDInterface*> *CDInterfaces, const 
 
 
  MDFNMP_Init(1024, ((uint64)1 << 29) / 1024);
- MDFNMP_AddRAM(2048 * 1024, 0x00000000, MainRAM.data8);
+ MDFNMP_AddRAM(RAM_SIZE * 1024, 0x00000000, MainRAM.data8);
  //MDFNMP_AddRAM(1024, 0x1F800000, ScratchRAM.data8);
 
  //
@@ -2169,7 +2190,7 @@ static void StateAction(StateMem *sm, const unsigned load, const bool data_only)
 
  SFORMAT StateRegs[] =
  {
-  SFPTR8(MainRAM.data8, 1024 * 2048),
+  SFPTR8(MainRAM.data8, 1024 * RAM_SIZE),
   SFPTR32(SysControl.Regs, 9),
 
   SFVAR(PSX_PRNG.lcgo),
@@ -2256,7 +2277,7 @@ static const MDFNSetting PSXSettings[] =
  { "psx.input.mouse_sensitivity", MDFNSF_NOFLAGS, gettext_noop("Emulated mouse sensitivity."), NULL, MDFNST_FLOAT, "1.00", NULL, NULL },
 
  { "psx.input.analog_mode_ct", MDFNSF_NOFLAGS, gettext_noop("Enable analog mode combo-button alternate toggle."), gettext_noop("When enabled, instead of the configured Analog mode toggle button for the emulated DualShock, use a combination of buttons held down for one emulated second to toggle it instead.  The specific combination is controlled via the \"psx.input.analog_mode_ct.compare\" setting, which by default is Select, Start, and all four shoulder buttons."), MDFNST_BOOL, "0", NULL, NULL },
- { "psx.input.analog_mode_ct.compare", MDFNSF_NOFLAGS, gettext_noop("Compare value for analog mode combo-button alternate toggle."), gettext_noop("0x0001=SELECT\n0x0002=L3\n0x0004=R3\n0x0008=START\n0x0010=D-Pad UP\n0x0020=D-Pad Right\n0x0040=D-Pad Down\n0x0080=D-Pad Left\n0x0100=L2\n0x0200=R2\n0x0400=L1\n0x0800=R1\n0x1000=â–³\n0x2000=â—‹\n0x4000=x\n0x8000=â–¡"), MDFNST_UINT, "0x0F09", "0x0000", "0xFFFF" },
+ { "psx.input.analog_mode_ct.compare", MDFNSF_NOFLAGS, gettext_noop("Compare value for analog mode combo-button alternate toggle."), gettext_noop("0x0001=SELECT\n0x0002=L3\n0x0004=R3\n0x0008=START\n0x0010=D-Pad UP\n0x0020=D-Pad Right\n0x0040=D-Pad Down\n0x0080=D-Pad Left\n0x0100=L2\n0x0200=R2\n0x0400=L1\n0x0800=R1\n0x1000=¢\n0x2000=›\n0x4000=x\n0x8000= "), MDFNST_UINT, "0x0F09", "0x0000", "0xFFFF" },
 
  { "psx.input.pport1.multitap", MDFNSF_EMU_STATE | MDFNSF_UNTRUSTED_SAFE, gettext_noop("Enable multitap on PSX port 1."), gettext_noop("Makes 3 more virtual ports available.\n\nNOTE: Enabling multitap in games that don't fully support it may cause deleterious effects."), MDFNST_BOOL, "0", NULL, NULL }, //MDFNST_ENUM, "auto", NULL, NULL, NULL, NULL, MultiTap_List },
  { "psx.input.pport2.multitap", MDFNSF_EMU_STATE | MDFNSF_UNTRUSTED_SAFE, gettext_noop("Enable multitap on PSX port 2."), gettext_noop("Makes 3 more virtual ports available.\n\nNOTE: Enabling multitap in games that don't fully support it may cause deleterious effects."), MDFNST_BOOL, "0", NULL, NULL },

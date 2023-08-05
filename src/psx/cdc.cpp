@@ -1,3 +1,4 @@
+#define SOTN_OPTIMIZE_CD 1
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -1097,7 +1098,19 @@ void PS_CDC::HandlePlayRead(void)
  SectorPipe_Pos = (SectorPipe_Pos + 1) % SectorPipe_Count;
  SectorPipe_In++;
 
+ #if SOTN_OPTIMIZE_CD == 1
+  if( 
+    (CurSector>=879 && CurSector<24545) ||  // SOTN FMVs location
+    (CurSector>=47542) // SOTN Music & Dialog location
+    )
+  {
+    PSRCounter += 33868800 / (75 * ((Mode & MODE_SPEED) ? 2 : 1));
+  } else {
+    PSRCounter += 33868800 / 450;
+  }
+ #else
  PSRCounter += 33868800 / (75 * ((Mode & MODE_SPEED) ? 2 : 1));
+ #endif
 
  if(DriveStatus == DS_PLAYING)
  {
@@ -1695,7 +1708,9 @@ int32 PS_CDC::CalcSeekTime(int32 initial, int32 target, bool motor_on, bool paus
  ret += PSX_GetRandU32(0, 25000);
 
  PSX_DBG(PSX_DBG_SPARSE, "[CDC] CalcSeekTime() %d->%d = %d\n", initial, target, ret);
-
+ #if SOTN_OPTIMIZE_CD == 1
+ ret = ret / 10;
+ #endif
  return(ret);
 }
 

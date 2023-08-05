@@ -1,3 +1,4 @@
+#define SOTN_OPTIMIZE_GPU 1
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -171,13 +172,17 @@ static INLINE void DrawSpan(int y, const int32 x_start, const int32 x_bound, i_g
 
   AddIDeltas_DX<goraud, textured>(ig, idl, x_ig_adjust);
   AddIDeltas_DY<goraud, textured>(ig, idl, y);
-
+  
+  #if SOTN_OPTIMIZE_GPU == 1
+  DrawTimeAvail -= 1;
+  #else
   if(goraud || textured)
    DrawTimeAvail -= w * 2;
   else if((BlendMode >= 0) || MaskEval_TA)
    DrawTimeAvail -= w + ((w + 1) >> 1);
   else
    DrawTimeAvail -= w;
+  #endif
 
   do
   {
@@ -513,6 +518,10 @@ static void Command_DrawPolygon(const uint32 *cb)
  //uint32 tpage = 0;
 
  // Base timing is approximate, and could be improved.
+
+ #if SOTN_OPTIMIZE_GPU == 1
+ DrawTimeAvail -= 1;
+ #else
  if(numvertices == 4 && InCmd == PS_GPU::INCMD_QUAD)
   DrawTimeAvail -= (28 + 18);
  else
@@ -524,7 +533,7 @@ static void Command_DrawPolygon(const uint32 *cb)
   DrawTimeAvail -= 96 * 3;
  else if(textured)
   DrawTimeAvail -= 60 * 3;
-
+#endif
  if(numvertices == 4)
  {
   if(InCmd == PS_GPU::INCMD_QUAD)
