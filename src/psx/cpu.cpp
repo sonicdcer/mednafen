@@ -1,3 +1,4 @@
+#define SOTN_OPTIMIZE_CPU 1
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -358,8 +359,11 @@ INLINE T PS_CPU::ReadMemory(pscpu_timestamp_t &timestamp, uint32 address, bool D
    return ScratchRAM.Read<T>(address & 0x3FF);
  }
 
- timestamp += (ReadFudge >> 4) & 2;
-
+#if SOTN_OPTIMIZE_CPU == 1
+//timestamp++;
+#else
+timestamp += (ReadFudge >> 4) & 2;
+#endif
  //assert(!(CP0.SR & 0x10000));
 
  pscpu_timestamp_t lts = timestamp;
@@ -495,7 +499,11 @@ INLINE uint32 PS_CPU::ReadInstruction(pscpu_timestamp_t &timestamp, uint32 addre
    ICI[0x02].TV = (address & 0xFFFFFFF0) | 0x8 | 0x2;
    ICI[0x03].TV = (address & 0xFFFFFFF0) | 0xC | 0x2;
 
+   #if SOTN_OPTIMIZE_CPU == 1
+   timestamp -= 8;
+   #else
    timestamp += 3;
+   #endif
 
    switch(address & 0xC)
    {
@@ -1269,6 +1277,9 @@ pscpu_timestamp_t PS_CPU::RunReal(pscpu_timestamp_t timestamp_in)
 	        if(timestamp < gte_ts_done)
 	         timestamp = gte_ts_done;
 		gte_ts_done = timestamp + GTE_Instruction(instr);
+		#if SOTN_OPTIMIZE_CPU == 1
+		gte_ts_done = timestamp + 1;
+		#endif
 		break;
 	}
     END_OPF;
@@ -1432,7 +1443,11 @@ pscpu_timestamp_t PS_CPU::RunReal(pscpu_timestamp_t timestamp_in)
          LO = (int32)GPR[rs] / (int32)GPR[rt];
          HI = (int32)GPR[rs] % (int32)GPR[rt];
         }
-	muldiv_ts_done = timestamp + 37;
+	#if SOTN_OPTIMIZE_CPU == 1
+	muldiv_ts_done = timestamp + 1;
+	#else
+ 	muldiv_ts_done = timestamp + 37;
+	#endif
 
 	DO_LDS();
 
@@ -1460,7 +1475,11 @@ pscpu_timestamp_t PS_CPU::RunReal(pscpu_timestamp_t timestamp_in)
 	 LO = GPR[rs] / GPR[rt];
 	 HI = GPR[rs] % GPR[rt];
 	}
+	#if SOTN_OPTIMIZE_CPU == 1
+	muldiv_ts_done = timestamp + 1;
+	#else
  	muldiv_ts_done = timestamp + 37;
+	#endif
 
 	DO_LDS();
     END_OPF;

@@ -1,3 +1,4 @@
+#define SOTN_OPTIMIZE_GTE 0
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -1681,7 +1682,9 @@ int32 GTE_Instruction(uint32 instr)
 	ret = NCCT(instr);
 	break;
  }
-
+ #if SOTN_OPTIMIZE_GTE == 1
+ ret = 1;
+ #endif 
  if(FLAGS & 0x7f87e000)
   FLAGS |= 1 << 31;
 

@@ -1,3 +1,10 @@
+#define RAM_8M 1
+
+#if RAM_8M == 1
+#define RAM_SIZE 8192
+#else
+#define RAM_SIZE 2048
+#endif
 /******************************************************************************/
 /* Mednafen Sony PS1 Emulation Module                                         */
 /******************************************************************************/
@@ -22,8 +29,8 @@
 #ifndef __MDFN_PSX_PSX_H
 #define __MDFN_PSX_PSX_H
 
-#include <mednafen/mednafen.h>
-#include <mednafen/general.h>
+#include <src/mednafen.h>
+#include <src/general.h>
 
 using namespace Mednafen;
 
@@ -134,7 +141,7 @@ namespace MDFN_IEN_PSX
  MDFN_HIDE extern PS_CPU *CPU;
  MDFN_HIDE extern PS_CDC *CDC;
  MDFN_HIDE extern PS_SPU *SPU;
- MDFN_HIDE extern MultiAccessSizeMem<2048 * 1024, false> MainRAM;
+ MDFN_HIDE extern MultiAccessSizeMem<RAM_SIZE * 1024, false> MainRAM;
 }
 
 
